@@ -1,133 +1,235 @@
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QFont, QColor
+from PyQt5.QtGui import QIcon
 import pyttsx3
-import tkinter as tk
-from tkinter import messagebox
-import wikipedia
 import speech_recognition as sr
 import webbrowser
 import pyjokes
 from datetime import datetime
-from bs4 import BeautifulSoup
+import wikipedia
 
-engine = pyttsx3.init('sapi5')  
+# Initialize text-to-speech
+engine = pyttsx3.init('sapi5')  #for windows
 voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[0].id)  # Set voice (0 for male, 1 for female if available)
+engine.setProperty('voice', voices[1].id)
 
-def speak(text):
-    """Function to convert text to speech"""
-    engine.say(text)
-    engine.runAndWait()
-
-def listen():
-    """Function to recognize voice input"""
-    recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("Listening...")
-        recognizer.pause_threshold = 1
-        audio = recognizer.listen(source)
-    
-    try:
-        print("Recognizing...")
-        query = recognizer.recognize_google(audio, language='en-in')
-        print(f"You said: {query}")
-    except Exception as e:
-        print("Sorry, I didn't catch that. Please try again.")
-        speak("Sorry, I didn't catch that. Please try again.")
-        return "None"
-    return query.lower()
-
-def greet():
-    hour = int(datetime.now().hour)
-    if 0 <= hour < 12:
-        speak("Good Morning!")
-    elif 12 <= hour < 18:
-        speak("Good Afternoon!")
-    else:
-        speak("Good Evening!")
-    speak("I am your personal assistant. How can I help you today?")
-
-def search_wikipedia(query):
-    speak("Searching Wikipedia...")
-    query = query.replace("wikipedia", "")
-    try:
-        results = wikipedia.summary(query, sentences=2)
-        speak("According to Wikipedia")
-        print(results)
-        speak(results)
-    except Exception as e:
-        speak("Sorry, I couldn't find anything on Wikipedia about that.")
-
-def open_website(query):
-    if "youtube" in query:
-        webbrowser.open("youtube.com")
-    elif "google" in query:
-        webbrowser.open("google.com")
-    elif "website" in query:
-        url = query.split("open")[-1].strip()
-        webbrowser.open(f"https://{url}")
-    else:
-        speak("I didn't understand which website to open.")
-
-def tell_joke():
-    joke = pyjokes.get_joke()
-    print(joke)
-    speak(joke)
-
-def get_time():
-    current_time = datetime.now().strftime("%H:%M:%S")
-    speak(f"The current time is {current_time}")
-
-# def send_sms():
-#     account_sid = "YOUR_TWILIO_SID"  # Replace with your Twilio SID
-#     auth_token = "YOUR_TWILIO_AUTH_TOKEN"  # Replace with your Twilio Auth Token
-#     client = Client(account_sid, auth_token)
-    
-#     message = client.messages.create(
-#         body="Hello from your Python Voice Assistant!",
-#         from_="YOUR_TWILIO_PHONE_NUMBER",  # Replace with your Twilio number
-#         to="RECIPIENT_PHONE_NUMBER"  # Replace with recipient's number
-#     )
-#     speak("Message sent successfully!")
-
-def main():
-    greet()
-    while True:
-        query = listen()
+class VoiceAssistantGUI(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+        self.listening = False
         
+    def initUI(self):
+        # Window settings
+        self.setWindowTitle("Python-based Voice Assistant")
+        self.setWindowIcon(QIcon("logo.png"))
+        self.setGeometry(500, 350, 600, 500)    #window size
+        self.setStyleSheet("""
+            background-color: #1F2A44;  /* Darker blue-gray */
+            border-radius: 10px;
+        """)
+        
+        # Central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(20)  # Increased spacing between elements
+        
+
+        # Title
+        layout.addSpacing(20)
+        title = QLabel("Voice Assistant")
+        title.setFont(QFont("Arial", 22, QFont.Bold))
+        title.setStyleSheet("color: #E6E6FA;")  # Soft lavender text
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        layout.addSpacing(30)  # Extra spacing after title
+        
+
+        # Status label
+        self.status = QLabel("Press 'Start' to begin")
+        self.status.setFont(QFont("Arial", 12))
+        self.status.setStyleSheet("""
+            color: #A9B7C6;  /* Light grayish-blue */
+            background-color: #2A3555;  /* Subtle background */
+            padding: 10px;
+            border-radius: 15px;
+        """)
+        self.status.setAlignment(Qt.AlignCenter)
+        self.status.setWordWrap(True)  # Allow text wrapping
+        layout.addWidget(self.status)
+        layout.addSpacing(20)  # Spacing before buttons
+        
+
+        # Button container for horizontal alignment
+        button_layout = QVBoxLayout()
+        button_layout.setSpacing(20)  # Space between buttons
+        
+
+        # Start button
+        self.start_btn = QPushButton("Start")
+        self.start_btn.setFont(QFont("Arial", 10))
+        self.start_btn.setFixedSize(130, 60)    #button size
+        self.start_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0c54cf;
+                color: white;
+                font-size: 20px;
+                padding: 10px;
+                border-radius: 25px;
+            }
+            QPushButton:hover {
+                background-color: #023ca1;  /* Darker blue on hover */
+            }
+        """)
+        self.start_btn.clicked.connect(self.toggle_listening)
+        button_layout.addWidget(self.start_btn, alignment=Qt.AlignCenter)
+        
+
+        # Stop button
+        self.stop_btn = QPushButton("Stop")
+        self.stop_btn.setFont(QFont("Arial", 10))
+        self.stop_btn.setFixedSize(130, 60) #button size
+        self.stop_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ff0000;
+                color: white;
+                padding: 10px;
+                border-radius: 25px;
+                font-size: 20px;
+            }
+            QPushButton:hover {
+                background-color: #bd0202;  
+            }
+        """)
+        self.stop_btn.clicked.connect(self.stop_assistant)
+        button_layout.addWidget(self.stop_btn, alignment=Qt.AlignCenter)
+        
+        layout.addLayout(button_layout)
+        layout.addStretch()  # Push content up, leaving space at bottom
+
+    #speak function   
+    def speak(self, text):
+        engine.say(text)
+        engine.runAndWait()
+
+    #listen function  
+    def listen(self):
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            self.status.setText("Listening...")
+            recognizer.pause_threshold = 1
+            audio = recognizer.listen(source)
+        
+        try:
+            self.status.setText("Recognizing...")
+            query = recognizer.recognize_google(audio, language='en-in')
+            self.status.setText(f"You said: {query}")
+            return query.lower()
+        except Exception:
+            self.status.setText("Sorry, I didn't catch that")
+            self.speak("Sorry, I didn't catch that")
+            return "none"
+
+
+    #process command function
+    def process_command(self, query):
         if query == "none":
-            continue
+            return
         
-        # Exit command
         if "exit" in query or "stop" in query:
-            speak("Goodbye!")
-            break
-        
-        # Command processing
+            self.stop_assistant()
         elif "wikipedia" in query:
-            search_wikipedia(query)
+            self.search_wikipedia(query)
         elif "open" in query:
-            open_website(query)
+            self.open_website(query)
         elif "joke" in query:
-            tell_joke()
+            self.tell_joke()
         elif "time" in query:
-            get_time()
+            self.get_time()
         else:
-            speak("Sorry, I don't know how to help with that yet.")
+            self.speak("Sorry, I don't know how to help with that yet")
 
-if __name__ == "__main__":
+
+    #search wikipedia function
+    def search_wikipedia(self, query):
+        self.speak("Searching Wikipedia...")
+        query = query.replace("wikipedia", "")
+        try:
+            results = wikipedia.summary(query, sentences=2)
+            self.speak("According to Wikipedia")
+            self.status.setText(results)
+            self.speak(results)
+        except Exception:
+            self.speak("Sorry, I couldn't find anything on Wikipedia")
+
+    #open website function
+    def open_website(self, query):
+        if "youtube" in query:
+            webbrowser.open("youtube.com")
+        elif "google" in query:
+            webbrowser.open("google.com")
+        elif "website" in query:
+            url = query.split("open")[-1].strip()
+            webbrowser.open(f"https://{url}")
+        else:
+            self.speak("I didn't understand which website to open")
+
+
+    #tell joke function
+    def tell_joke(self):
+        joke = pyjokes.get_joke()
+        self.status.setText(joke)
+        self.speak(joke)
+        self.speak("Here's a joke for you!")
+    
+
+    #get time function
+    def get_time(self):
+        current_time = datetime.now().strftime("%H:%M:%S")
+        self.speak(f"The current time is {current_time}")
+        self.status.setText(f"Time: {current_time}")
+
+
+    #toggle listening function; this function is called when the user clicks the "Start" button
+    def toggle_listening(self):
+        if not self.listening:
+            self.listening = True
+            self.start_btn.setText("Listening")
+            self.speak("Hello! How can I assist you today?")
+            QTimer.singleShot(1000, self.process_voice)
+        else:
+            self.listening = False
+            self.start_btn.setText("Start")
+            self.status.setText("Press 'Start' to begin")
+
+
+    ##process voice function; this function is called repeatedly to listen for commands
+    def process_voice(self):
+        if self.listening:
+            query = self.listen()
+            self.process_command(query)
+            QTimer.singleShot(1000, self.process_voice)
+
+
+    ##stop assistant function; this function is called when the user clicks the "Stop" button
+    def stop_assistant(self):
+        self.listening = False
+        self.start_btn.setText("Start")
+        self.speak("Goodbye!")
+        self.status.setText("Assistant stopped")
+
+
+## Main function to run the application
+def main():
+    app = QApplication(sys.argv)
+    window = VoiceAssistantGUI()
+    window.show()
+    sys.exit(app.exec_())
+
+## Run the application
+if __name__ == '__main__':
     main()
-
-root = tk.Tk()
-root.title("Voice Assistant")
-root.geometry("300x200")
-
-def start_assistant():
-    messagebox.showinfo("Voice Assistant", "Assistant is starting...")
-    main()
-
-start_button = tk.Button(root, text="Start Assistant", command=start_assistant)
-start_button.pack(pady=20)
-
-exit_button = tk.Button(root, text="Exit", command=root.quit)
-exit_button.pack(pady=20)
-
-root.mainloop()
