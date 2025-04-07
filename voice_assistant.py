@@ -121,11 +121,13 @@ class VoiceAssistantGUI(QMainWindow):
         recognizer = sr.Recognizer()
         with sr.Microphone() as source:
             self.status.setText("Listening...")
+            QApplication.processEvents()
             recognizer.pause_threshold = 1
             audio = recognizer.listen(source)
         
         try:
             self.status.setText("Recognizing...")
+            QApplication.processEvents()
             query = recognizer.recognize_google(audio, language='en-in')
             self.status.setText(f"You said: {query}")
             return query.lower()
